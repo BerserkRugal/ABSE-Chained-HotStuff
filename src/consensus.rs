@@ -50,10 +50,13 @@ pub(crate) struct VoterState {
     // <view, (whos)>
     pub new_views: HashMap<u64, Vec<PublicKey>>,
     pub abse_struct: ABSE,
+    pub id_to_index: HashMap<PublicKey, usize>,
+    pub score_array: Vec<u64>,
 }
 
 impl VoterState {
-    pub fn new(id: PublicKey, view: u64, generic_qc: QC, threshold: usize) -> Self {
+    pub fn new(id: PublicKey, view: u64, generic_qc: QC, threshold: usize, id_to_index: HashMap<PublicKey, usize>, lenn: usize) -> Self {
+      let score_array = vec![0; lenn];
         Self {
             id,
             view,
@@ -65,8 +68,27 @@ impl VoterState {
             best_view: Arc::new(AtomicU64::new(0)),
             new_views: HashMap::new(),
             abse_struct: ABSE::new(2),
+            id_to_index,
+            score_array,
         }
     }
+
+    pub(crate) fn get_index(&self, voter_id: PublicKey) -> Option<usize> {
+      self.id_to_index.get(&voter_id).cloned()
+    }
+
+    pub(crate) fn reset_array(&mut self) { // 新增这个函数
+      for item in &mut self.score_array {
+          *item = 0;
+      }
+    }
+
+    pub(crate) fn set_voter_id(&mut self, voter_id: PublicKey) {
+      if let Some(index) = self.get_index(voter_id) {
+          self.score_array[index] = 1;
+      }
+    }
+
 
     pub(crate) fn view_add_one(&mut self) {
         // println!("{}: view add to {}", self.id, self.view + 1);
@@ -184,11 +206,16 @@ pub(crate) struct Voter {
 #[derive(Debug, Clone)]
 pub(crate) struct VoterSet {
     voters: Vec<PublicKey>,
+    id_to_index: HashMap<PublicKey, usize>,
 }
 
 impl VoterSet {
     pub fn new(voters: Vec<PublicKey>) -> Self {
-        Self { voters }
+      let mut id_to_index = HashMap::new();
+      for (i, voter) in voters.iter().enumerate() {
+          id_to_index.insert(*voter, i);
+      }
+      Self { voters, id_to_index} 
     }
 
     pub fn threshold(&self) -> usize {
@@ -198,6 +225,10 @@ impl VoterSet {
     pub fn iter(&self) -> Iter<PublicKey> {
         self.voters.iter()
     }
+
+    pub fn get_index(&self, voter_id: PublicKey) -> Option<usize> {
+      self.id_to_index.get(&voter_id).cloned()
+  }
 }
 
 impl Iterator for VoterSet {
@@ -223,11 +254,15 @@ impl Voter {
         // Start from view 0, and keep increasing the view number
         let generic_qc = self.env.lock().block_tree.genesis().0.justify.clone();
         let voters = self.env.lock().voter_set.to_owned();
+        let id_to_index = voters.id_to_index.clone();
+        let lenn = voters.voters.len().clone();
         let state = Arc::new(Mutex::new(VoterState::new(
             self.id,
             self.view,
             generic_qc,
             voters.threshold(),
+            id_to_index,
+            lenn,
         )));
         let notify = state.lock().best_view_ref();
         let leadership = Leadership::new(voters, self.config.get_node_settings().leader_rotation);
@@ -573,6 +608,8 @@ impl ConsensusVoter {
         while let Some(pkg) = rx.recv().await {
             let view = pkg.view.unwrap();
             let current_view = self.state.lock().view;
+            self.state.lock().abse_struct.update_round(current_view);
+            trace!("{:?}: ABSE Struct", self.state.lock().abse_struct);
 
             if !buffer.is_empty() {
                 while let Some((&view, _)) = buffer.first_key_value() {
@@ -646,7 +683,6 @@ impl ConsensusVoter {
 
             if self.leadership.get_leader(view) == id {
                 tracing::trace!("{}: start as leader in view: {}", id, view);
-                // qc for in-between blocks
                 let generic_qc = { self.state.lock().generic_qc.to_owned() };
 
                 while self.collect_view.load(Ordering::SeqCst) + 1 < view {

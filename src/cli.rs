@@ -19,6 +19,8 @@ pub(crate) struct Cli {
     addr: String,
 
     /// Use HotStuff consensus.
+    /// Currently unavailable, cause ABSE has already consumed memory.
+    /// which can lead to inaccurate HotStuff performance
     #[arg(short, long)]
     pub(crate) disable_ach: bool,
 

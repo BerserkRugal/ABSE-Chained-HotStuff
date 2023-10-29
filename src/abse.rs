@@ -1,8 +1,9 @@
 use std::collections::VecDeque;
 use std::error::Error;
 
+#[derive(Debug)]
 pub struct ABSE {
-    r: i32,  // record the number of rounds, initially 0
+    r: u64,  // record the number of rounds, initially 0
     s: Vec<f64>,  // the score of p_i
     ref_s: Vec<f64>,  // the reference score of p_i
     scores_i: VecDeque<Vec<f64>>,  // A queue of s, initially all 0
@@ -53,6 +54,9 @@ impl ABSE {
             false
         }
     }
+    pub fn update_round(&mut self, r: u64) {
+      self.r = r;
+  }
 }
 
 #[cfg(test)]
