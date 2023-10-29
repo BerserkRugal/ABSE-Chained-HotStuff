@@ -17,6 +17,7 @@ use node::Node;
 
 use anyhow::Result;
 
+mod abse;
 mod cli;
 mod client;
 mod config_gen;

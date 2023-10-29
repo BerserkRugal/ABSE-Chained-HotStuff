@@ -2,6 +2,7 @@ use crate::{
     crypto::{Digest, PublicKey, Signature},
     data::{BlockType, QC},
     node_config::NodeConfig,
+    abse::ABSE,
 };
 use std::{
     collections::{BTreeMap, HashMap},
@@ -48,6 +49,7 @@ pub(crate) struct VoterState {
     pub best_view: Arc<AtomicU64>,
     // <view, (whos)>
     pub new_views: HashMap<u64, Vec<PublicKey>>,
+    pub abse_struct: ABSE,
 }
 
 impl VoterState {
@@ -62,6 +64,7 @@ impl VoterState {
             notify: Arc::new(Notify::new()),
             best_view: Arc::new(AtomicU64::new(0)),
             new_views: HashMap::new(),
+            abse_struct: ABSE::new(2),
         }
     }
 

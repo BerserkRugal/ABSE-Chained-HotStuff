@@ -3,6 +3,33 @@
 version = 3
 
 [[package]]
+name = "ach"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "base32",
+ "base64",
+ "bincode",
+ "blake3",
+ "bytes",
+ "clap",
+ "config",
+ "ed25519-dalek",
+ "futures",
+ "parking_lot",
+ "rand",
+ "serde",
+ "serde-big-array",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "ahash"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -436,33 +463,6 @@ name = "itoa"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4217ad341ebadf8d8e724e264f13e593e0648f5b3e94b3896a5df283be015ecc"
-
-[[package]]
-name = "ach"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "base32",
- "base64",
- "bincode",
- "blake3",
- "bytes",
- "clap",
- "config",
- "ed25519-dalek",
- "futures",
- "parking_lot",
- "rand",
- "serde",
- "serde-big-array",
- "serde_json",
- "thiserror",
- "tokio",
- "tokio-util",
- "tracing",
- "tracing-subscriber",
-]
 
 [[package]]
 name = "json5"
