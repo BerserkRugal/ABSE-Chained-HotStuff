@@ -83,6 +83,10 @@ impl VoterState {
       }
     }
 
+    pub fn get_array(&self) -> &[u64] {
+      &self.score_array
+    }
+
     pub(crate) fn set_voter_id(&mut self, voter_id: PublicKey) {
       if let Some(index) = self.get_index(voter_id) {
           self.score_array[index] = 1;
@@ -563,13 +567,16 @@ impl ConsensusVoter {
             Message::Vote(block_hash, author, signature) => {
                 // onReceiveVote
                 let qc = self.state.lock().add_vote(view, block_hash, from);
-
                 // verify signature
                 author.verify(&block_hash, &signature).unwrap();
+                self.state.lock().set_voter_id(from);
 
                 if let Some(qc) = qc {
                     self.update_qc_high(qc);
                     self.state.lock().set_best_view(view);
+                    let s_array = self.state.lock().get_array().to_vec();
+                    //self.state.lock().abse_struct
+
                 }
             }
             Message::NewView(high_qc, digest, author, signature) => {
@@ -683,6 +690,7 @@ impl ConsensusVoter {
 
             if self.leadership.get_leader(view) == id {
                 tracing::trace!("{}: start as leader in view: {}", id, view);
+                self.state.lock().reset_array();
                 let generic_qc = { self.state.lock().generic_qc.to_owned() };
 
                 while self.collect_view.load(Ordering::SeqCst) + 1 < view {

@@ -49,7 +49,7 @@ impl Default for NodeSettings {
             batch_size: 500,
             mempool_size: 5000,
             pretend_failure: false,
-            leader_rotation: 5,
+            leader_rotation: 1,
             gc_depth: 2000,
             timeout: 2500,
         }
@@ -78,10 +78,7 @@ impl Default for ClientConfig {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub(crate) enum ConsensusType {
     ACH {
-        /// Consensus Engine will not generate in-between blocks
-        /// if actual payload length is less than this value.
-        /// This is to prevent the network from being flooded with
-        /// empty blocks.
+        /// Use ABSE-Chained-HotStuff
         minimal_batch_size_ratio: f64,
     },
     HotStuff,

@@ -203,7 +203,6 @@ pub(crate) struct BlockTree {
     pub(crate) latest_key_block: Digest,
     /// The latest block we are tracking.
     /// This is always a direct descendant of latest_key_block.
-    /// This is used to track in-between blocks.
     pub(crate) latest: Digest,
     pub(crate) enable_metrics: bool,
     /// Tracking all the leaves that is not latest_key_block.

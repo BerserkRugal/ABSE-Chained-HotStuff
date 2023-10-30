@@ -4,10 +4,10 @@ use std::error::Error;
 #[derive(Debug)]
 pub struct ABSE {
     r: u64,  // record the number of rounds, initially 0
-    s: Vec<f64>,  // the score of p_i
-    ref_s: Vec<f64>,  // the reference score of p_i
-    scores_i: VecDeque<Vec<f64>>,  // A queue of s, initially all 0
-    info: Vec<f64>,  // A structure used to record voting information
+    s: Vec<u64>,  // the score of p_i
+    ref_s: Vec<u64>,  // the reference score of p_i
+    scores_i: VecDeque<Vec<u64>>,  // A queue of s, initially all 0
+    info: Vec<u64>,  // A structure used to record voting information
     baseline: f64,  // the baseline score of leader election
     size: usize,  // The size for checking the queue length (confirm)
 }
@@ -25,30 +25,47 @@ impl ABSE {
         }
     }
 
-    pub fn generate(&mut self) -> Result<Vec<f64>, Box<dyn Error>> {
-        let rear_data = self.scores_i.back().unwrap();
+    pub fn set_info(&mut self, info: Vec<u64>) {
+      self.info = info;
+    }
+
+    pub fn generate(&mut self) -> Result<Vec<u64>, Box<dyn Error>> {
+        //let rear_data = self.scores_i.back().unwrap();
+        let mut rear_data = self.scores_i.back().cloned().unwrap_or_else(|| vec![0]);
 
         if self.info.len() > rear_data.len() {
-            return Err("Length of info is greater than length of scores_i's rear data".into());
+          rear_data.resize(self.info.len(), 0);
         } else if self.info.len() < rear_data.len() {
-            self.info.resize(rear_data.len(), 0.0);
+            self.info.resize(rear_data.len(), 0);
         }
 
-        let new_s = self.info.iter().zip(rear_data.iter()).map(|(a, b)| a + b).collect::<Vec<f64>>();
+        let new_s = self.info.iter().zip(rear_data.iter()).map(|(a, b)| a + b).collect::<Vec<u64>>();
         Ok(new_s)
     }
 
-    pub fn update(&mut self, s: Vec<f64>, f: f64) {
-        if self.scores_i.len() >= self.size {
-            self.ref_s = self.scores_i.pop_front().unwrap();
-        }
-        self.scores_i.push_back(s);
-        // A new baseline is obtained based on r. The computation rules can be specialised for different scenarios.
-        self.baseline = (self.r as f64 * (2.0 * f + 1.0)) / (3.0 * f + 1.0);
+    // pub fn update(&mut self, s: Vec<u64>, f: f64) {
+    //     if self.scores_i.len() >= self.size {
+    //         self.ref_s = self.scores_i.pop_front().unwrap();
+    //     }
+    //     self.scores_i.push_back(s);
+    //     // A new baseline is obtained based on r. The computation rules can be specialised for different scenarios.
+    //     self.baseline = (self.r as f64 * (2.0 * f + 1.0)) / (3.0 * f + 1.0);
+    // }
+
+    pub fn update(&mut self, f: f64) -> Result<(), Box<dyn Error>> {
+      let s = self.generate()?;
+      if self.scores_i.len() >= self.size {
+          self.ref_s = self.scores_i.pop_front().unwrap();
+      }
+      self.scores_i.push_back(s);
+      // A new baseline is obtained based on r. The computation rules can be specialized for different scenarios.
+      //self.baseline = (self.r as f64 * (2.0 * f + 1.0)) / (3.0 * f + 1.0);
+      self.baseline = ((self.r as f64 - self.size as f64 - 1.0).max(0.0) * (2.0 * f + 1.0)) / (3.0 * f + 1.0);
+      Ok(())
     }
 
     pub fn judge(&self, j: usize) -> bool {
-        if self.ref_s.is_empty() || self.ref_s[j] > self.baseline {
+        if self.ref_s.is_empty() || self.ref_s[j] as f64 > self.baseline {
             true
         } else {
             false
@@ -73,29 +90,42 @@ mod tests {
     #[test]
     fn test_abse_generate() {
         let mut abse = ABSE::new(2);
-        abse.scores_i.push_back(vec![1.0, 2.0, 3.0]);
-        abse.scores_i.push_back(vec![2.0, 3.0, 4.0]);
-        abse.info = vec![1.0, 2.0];
+        // abse.scores_i.push_back(vec![1, 2, 3]);
+        // abse.scores_i.push_back(vec![2, 3, 4]);
+        abse.info = vec![1, 2, 3];
         let result = abse.generate();
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), vec![3.0, 5.0, 4.0]);
+        assert_eq!(result.unwrap(), vec![3, 5, 4]);
     }
+
+    // #[test]
+    // fn test_abse_update() {
+    //     let mut abse = ABSE::new(2);
+    //     abse.scores_i.push_back(vec![1, 2, 3]);
+    //     abse.scores_i.push_back(vec![4, 5, 6]);
+    //     abse.r = 3;
+    //     abse.update(vec![7, 8, 9], 2.0);
+    //     assert_eq!(abse.scores_i.len(), 2);
+    //     assert_eq!(abse.scores_i[0], vec![4, 5, 6]);
+    //     assert_eq!(abse.scores_i[1], vec![7, 8, 9]);
+    //     assert_eq!(abse.ref_s, vec![1, 2, 3]);
+    //     //assert_eq!(abse.baseline, 2.25);
+    //     abse.r = 4;
+    //     abse.update(vec![1, 1, 1], 2.0);
+    //     assert_eq!(abse.ref_s, vec![4, 5, 6]);
+    // }
 
     #[test]
     fn test_abse_update() {
         let mut abse = ABSE::new(2);
-        abse.scores_i.push_back(vec![1 as f64, 2.0, 3.0]);
-        abse.scores_i.push_back(vec![4.0, 5.0, 6.0]);
-        abse.r = 3;
-        abse.update(vec![7.0, 8.0, 9.0], 2.0);
-        assert_eq!(abse.scores_i.len(), 2);
-        assert_eq!(abse.scores_i[0], vec![4.0, 5.0, 6.0]);
-        assert_eq!(abse.scores_i[1], vec![7.0, 8.0, 9.0]);
-        assert_eq!(abse.ref_s, vec![1.0, 2.0, 3.0]);
-        //assert_eq!(abse.baseline, 2.25);
-        abse.r = 4;
-        abse.update(vec![1.0, 1.0, 1.0], 2.0);
-        assert_eq!(abse.ref_s, vec![4.0, 5.0, 6.0]);
+        abse.update_round(4);
+        abse.set_info(vec![1, 2, 3]);
+        abse.update(2.0);
+        assert_eq!(abse.scores_i.len(), 1);
+        assert_eq!(abse.scores_i[0], vec![1, 2, 3]);
+        //assert_eq!(abse.scores_i[1], vec![7, 8, 9]);
+        //assert_eq!(abse.ref_s, vec![1, 2, 3]);
+        assert_eq!(abse.baseline, 2.25);
     }
 
     #[test]
