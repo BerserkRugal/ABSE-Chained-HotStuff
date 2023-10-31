@@ -55,7 +55,7 @@ pub(crate) struct VoterState {
 }
 
 impl VoterState {
-    pub fn new(id: PublicKey, view: u64, generic_qc: QC, threshold: usize, id_to_index: HashMap<PublicKey, usize>, lenn: usize) -> Self {
+    pub fn new(id: PublicKey, view: u64, generic_qc: QC, threshold: usize, abse_struct: ABSE, id_to_index: HashMap<PublicKey, usize>, lenn: usize) -> Self {
       let score_array = vec![0; lenn];
         Self {
             id,
@@ -67,7 +67,7 @@ impl VoterState {
             notify: Arc::new(Notify::new()),
             best_view: Arc::new(AtomicU64::new(0)),
             new_views: HashMap::new(),
-            abse_struct: ABSE::new(2),
+            abse_struct,
             id_to_index,
             score_array,
         }
@@ -94,15 +94,25 @@ impl VoterState {
     }
 
 
-    pub(crate) fn view_add_one(&mut self) {
+    pub(crate) fn view_add_multi(&mut self, multiview: u64) {
         // println!("{}: view add to {}", self.id, self.view + 1);
         // Prune old votes
         self.votes.retain(|v, _| v >= &self.view);
         self.new_views.retain(|v, _| v >= &self.view);
 
-        self.view += 1;
+        self.view += multiview;
         self.notify.notify_waiters();
     }
+
+    pub(crate) fn view_add_one(&mut self) {
+      // println!("{}: view add to {}", self.id, self.view + 1);
+      // Prune old votes
+      self.votes.retain(|v, _| v >= &self.view);
+      self.new_views.retain(|v, _| v >= &self.view);
+
+      self.view += 1;
+      self.notify.notify_waiters();
+  }
 
     pub(crate) fn add_new_view(&mut self, view: u64, who: PublicKey) {
         let view_map = self.new_views.entry(view).or_default();
@@ -260,11 +270,13 @@ impl Voter {
         let voters = self.env.lock().voter_set.to_owned();
         let id_to_index = voters.id_to_index.clone();
         let lenn = voters.voters.len().clone();
+        let faulties = lenn - voters.threshold();
         let state = Arc::new(Mutex::new(VoterState::new(
             self.id,
             self.view,
             generic_qc,
             voters.threshold(),
+            ABSE::new(2, faulties as u64),
             id_to_index,
             lenn,
         )));
@@ -575,8 +587,9 @@ impl ConsensusVoter {
                     self.update_qc_high(qc);
                     self.state.lock().set_best_view(view);
                     let s_array = self.state.lock().get_array().to_vec();
-                    //self.state.lock().abse_struct
-
+                    self.state.lock().abse_struct.set_info(s_array);
+                    trace!("Set info!");
+                    self.state.lock().reset_array();
                 }
             }
             Message::NewView(high_qc, digest, author, signature) => {
@@ -615,8 +628,12 @@ impl ConsensusVoter {
         while let Some(pkg) = rx.recv().await {
             let view = pkg.view.unwrap();
             let current_view = self.state.lock().view;
-            self.state.lock().abse_struct.update_round(current_view);
-            trace!("{:?}: ABSE Struct", self.state.lock().abse_struct);
+            if self.state.lock().abse_struct.get_r() < current_view {
+              self.state.lock().abse_struct.update_round(current_view);
+              self.state.lock().abse_struct.update();
+              self.state.lock().abse_struct.set_info(Vec::new());
+              trace!("{:?}: ABSE Struct", self.state.lock().abse_struct);
+            }
 
             if !buffer.is_empty() {
                 while let Some((&view, _)) = buffer.first_key_value() {
