@@ -104,7 +104,7 @@ impl VoterState {
       self.votes.retain(|v, _| v >= &self.view);
       self.new_views.retain(|v, _| v >= &self.view);
 
-      self.view += multiview;
+      self.view_cp = multiview;
       self.notify.notify_waiters();
   }
 
@@ -117,6 +117,10 @@ impl VoterState {
   self.view = self.view_cp.clone();
 }
 
+  pub(crate) fn fail_jmp(&mut self) {
+  self.view_cp = self.view.clone();
+  }
+
   pub(crate) fn view_add_one(&mut self) {
     // println!("{}: view add to {}", self.id, self.view + 1);
     // Prune old votes
@@ -124,6 +128,7 @@ impl VoterState {
     self.new_views.retain(|v, _| v >= &self.view);
 
     self.view += 1;
+    self.view_cp += 1;
     self.notify.notify_waiters();
 }
 
@@ -163,6 +168,10 @@ impl VoterState {
               msg_view,
               self.view
           );
+          let s_array = self.get_array().to_vec();
+          self.abse_struct.set_info(s_array);
+          trace!("Set info!");
+          self.reset_array();
           Some(QC::new(block_hash, msg_view))
       } else {
           trace!(
@@ -282,6 +291,7 @@ impl Voter {
       let generic_qc = self.env.lock().block_tree.genesis().0.justify.clone();
       let voters = self.env.lock().voter_set.to_owned();
       let id_to_index = voters.id_to_index.clone();
+      //trace!("voters: {:?}", voters);
       let lenn = voters.voters.len().clone();
       let faulties = lenn - voters.threshold();
       let state = Arc::new(Mutex::new(VoterState::new(
@@ -499,14 +509,30 @@ impl ConsensusVoter {
                           }
                         }
                     }
-
-                      // Suppose the block is valid, vote for it
+                    if jmp > 1 {
+                      trace!("Target is view {}.", current_view + jmp);
                       Some(Self::package_message(
-                          id,
-                          Message::Vote(hash, id, self.config.sign(&hash)),
-                          current_view,
-                          Some(self.leadership.get_leader(current_view + 1)),
-                      ))
+                        id,
+                        Message::Vote(hash, id, self.config.sign(&hash)),
+                        current_view,
+                        Some(self.leadership.get_leader(current_view + jmp)),
+                    ))
+                    }else{
+                        // Suppose the block is valid, vote for it
+                        Some(Self::package_message(
+                        id,
+                        Message::Vote(hash, id, self.config.sign(&hash)),
+                        current_view,
+                        Some(self.leadership.get_leader(current_view + 1)),
+                    )) 
+                    }
+                        // Suppose the block is valid, vote for it
+                    //     Some(Self::package_message(
+                    //     id,
+                    //     Message::Vote(hash, id, self.config.sign(&hash)),
+                    //     current_view,
+                    //     Some(self.leadership.get_leader(current_view + 1)),
+                    // )) 
                   } else {
                       trace!(
                           "{}: Safety: {} or Liveness: {} are both invalid",
@@ -584,11 +610,18 @@ impl ConsensusVoter {
                       }
                   }
               }
-
-              trace!("{}: view add one", id);
+              if jmp > 1{
+                trace!("{}: view add multi", id);
               // Finish the view
-              self.state.lock().view_add_one();
-
+                self.state.lock().view_add_multi(current_view + jmp);
+              }else{
+                trace!("{}: view add one", id);
+                // Finish the view
+                self.state.lock().view_add_one();
+              }
+              // trace!("{}: view add one", id);
+              // // Finish the view
+              // self.state.lock().view_add_one();
               tracing::trace!("{}: voter finish view: {}", id, current_view);
           }
           Message::ProposeInBetween(block) => {
@@ -606,25 +639,22 @@ impl ConsensusVoter {
           }
           Message::Vote(block_hash, author, signature) => {
               // onReceiveVote
-              let qc = self.state.lock().add_vote(view, block_hash, from);
               // verify signature
               author.verify(&block_hash, &signature).unwrap();
               self.state.lock().set_voter_id(from);
+              let qc = self.state.lock().add_vote(view, block_hash, from);
 
               if let Some(qc) = qc {
                   self.update_qc_high(qc);
                   self.state.lock().set_best_view(view);
-                  let s_array = self.state.lock().get_array().to_vec();
-                  self.state.lock().abse_struct.set_info(s_array);
-                  trace!("Set info!");
-                  self.state.lock().reset_array();
+                  
               }
           }
           Message::NewView(high_qc, digest, author, signature) => {
               self.update_qc_high(high_qc);
 
               author.verify(&digest, &signature).unwrap();
-
+              self.state.lock().set_voter_id(from);
               let qc = self.state.lock().add_vote(view, digest, from);
 
               if let Some(qc) = qc {
@@ -655,6 +685,14 @@ impl ConsensusVoter {
 
       while let Some(pkg) = rx.recv().await {
           let view = pkg.view.unwrap();
+          let viewc = self.state.lock().view_cp.clone();
+          let cview = self.state.lock().view.clone();
+          trace!("view:{}， view copy:{}",cview, viewc);
+          if view == viewc && viewc > cview {
+            trace!("View jump successfully!");
+            self.state.lock().success_jmp();
+            self.state.lock().multi_retain();
+          }
           let current_view = self.state.lock().view;
           if self.state.lock().abse_struct.get_r() < current_view {
             self.state.lock().abse_struct.update_round(current_view);

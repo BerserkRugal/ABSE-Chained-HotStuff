@@ -71,7 +71,7 @@ impl ABSE {
     }
 
     pub fn judge(&self, j: usize) -> bool {
-        if self.ref_s.is_empty() || self.ref_s.len() < j+1 || self.ref_s[j] as f64 > self.baseline.floor() {
+        if self.ref_s.is_empty() || self.ref_s.len() < j+1 || self.ref_s[j] as f64 >= self.baseline.floor() {
             true
         } else {
             false
