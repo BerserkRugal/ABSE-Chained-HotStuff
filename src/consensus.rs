@@ -514,7 +514,7 @@ impl ConsensusVoter {
                       Some(Self::package_message(
                         id,
                         Message::Vote(hash, id, self.config.sign(&hash)),
-                        current_view,
+                        current_view + jmp -1,
                         Some(self.leadership.get_leader(current_view + jmp)),
                     ))
                     }else{
@@ -687,11 +687,12 @@ impl ConsensusVoter {
           let view = pkg.view.unwrap();
           let viewc = self.state.lock().view_cp.clone();
           let cview = self.state.lock().view.clone();
-          trace!("view:{}， view copy:{}",cview, viewc);
-          if view == viewc && viewc > cview {
+          trace!("view pkg:{}, current view:{}， view copy:{}",view, cview, viewc);
+          //if ((view == viewc-1)&&self.leadership.get_leader(viewc) == id)&& viewc > cview {
+          if view == viewc-1 && viewc > cview {
             trace!("View jump successfully!");
             self.state.lock().success_jmp();
-            self.state.lock().multi_retain();
+            //self.state.lock().multi_retain();
           }
           let current_view = self.state.lock().view;
           if self.state.lock().abse_struct.get_r() < current_view {
