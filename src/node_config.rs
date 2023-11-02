@@ -28,6 +28,7 @@ pub enum ConfigError {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub(crate) struct NodeSettings {
     pub(crate) transaction_size: usize,
+    pub(crate) maxjmp: usize,
     pub(crate) batch_size: usize,
     /// The maximum number of transactions in the mempool.
     ///
@@ -46,6 +47,7 @@ impl Default for NodeSettings {
     fn default() -> Self {
         Self {
             transaction_size: 128,
+            maxjmp: 2,
             batch_size: 500,
             mempool_size: 5000,
             pretend_failure: false,
@@ -254,6 +256,10 @@ impl NodeConfig {
 
             if let Some(v) = cli.transaction_size {
                 cfg.node_settings.transaction_size = v;
+            }
+
+            if let Some(v) = cli.maxjmp{
+                cfg.node_settings.maxjmp = v;
             }
 
             if let Some(v) = cli.batch_size {

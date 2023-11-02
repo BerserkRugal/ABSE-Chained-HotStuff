@@ -24,6 +24,10 @@ pub(crate) struct Cli {
     #[arg(short, long)]
     pub(crate) disable_ach: bool,
 
+    /// view maxium jump
+    #[arg(short, long)]
+    pub(crate) maxjmp: Option<usize>,
+
     /// Set injection_rate, default value is 100_000 (tx/s).
     #[arg(short, long)]
     pub(crate) rate: Option<u64>,

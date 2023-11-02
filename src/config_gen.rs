@@ -172,7 +172,7 @@ impl DistributionPlan {
         base_config: NodeConfig,
     ) -> String {
         format!(
-            "{}-n{}-h{}-f{}-ts{}-bs{}-ir{}-lr{}",
+            "{}-n{}-h{}-f{}-ts{}-bs{}-ir{}-lr{}-m{}",
             base_config.get_consensus_type(),
             number,
             hosts_len,
@@ -181,6 +181,7 @@ impl DistributionPlan {
             base_config.get_node_settings().batch_size,
             base_config.get_client_config().injection_rate,
             base_config.get_node_settings().leader_rotation,
+            base_config.get_node_settings().maxjmp,
         )
     }
 

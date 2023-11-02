@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::error::Error;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ABSE {
     r: u64,  // record the number of rounds, initially 0
     f: u64,  // record the maxium number of faulties 
@@ -71,7 +71,7 @@ impl ABSE {
     }
 
     pub fn judge(&self, j: usize) -> bool {
-        if self.ref_s.is_empty() || self.ref_s.len() < (j-1) || self.ref_s[j] as f64 > self.baseline {
+        if self.ref_s.is_empty() || self.ref_s.len() < j+1 || self.ref_s[j] as f64 > self.baseline.floor() {
             true
         } else {
             false
