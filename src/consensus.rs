@@ -41,6 +41,7 @@ pub(crate) struct VoterState {
   pub id: PublicKey,
   pub view: u64,
   pub view_cp: u64,
+  pub last_view: i32,
   maxjmp: usize,
   pub threshold: usize,
   pub generic_qc: QC,
@@ -62,6 +63,7 @@ impl VoterState {
       Self {
           id,
           view_cp: view.clone(),
+          last_view: view.clone() as i32 -1,
           view,
           maxjmp,
           threshold,
@@ -92,8 +94,10 @@ impl VoterState {
   }
 
   pub(crate) fn set_voter_id(&mut self, voter_id: PublicKey) {
+    trace!("Set for: {}!",voter_id);
     if let Some(index) = self.get_index(voter_id) {
         self.score_array[index] = 1;
+        trace!("Success! Current array is: {:?}", self.score_array);
     }
   }
 
@@ -105,7 +109,8 @@ impl VoterState {
       self.new_views.retain(|v, _| v >= &self.view);
 
       self.view_cp = multiview;
-      self.notify.notify_waiters();
+      self.last_view += 1;
+      //self.notify.notify_waiters();
   }
 
   pub(crate) fn multi_retain(&mut self) {
@@ -115,6 +120,7 @@ impl VoterState {
 
   pub(crate) fn success_jmp(&mut self) {
   self.view = self.view_cp.clone();
+  self.last_view = self.view_cp.clone() as i32 - 1;
 }
 
   pub(crate) fn fail_jmp(&mut self) {
@@ -128,8 +134,11 @@ impl VoterState {
     self.new_views.retain(|v, _| v >= &self.view);
 
     self.view += 1;
+    self.last_view += 1;
     self.view_cp += 1;
+    trace!("Attemping trigger waiters...");
     self.notify.notify_waiters();
+    trace!("Success triggering!");
 }
 
   pub(crate) fn add_new_view(&mut self, view: u64, who: PublicKey) {
@@ -156,10 +165,12 @@ impl VoterState {
       block_hash: Digest,
       voter_id: PublicKey,
   ) -> Option<QC> {
+      self.set_voter_id(voter_id.clone());
       let view_map = self.votes.entry(msg_view).or_default();
       let voters = view_map.entry(block_hash).or_default();
       // TODO: check if voter_id is already in voters
       voters.push(voter_id);
+      
 
       if voters.len() == self.threshold {
           trace!(
@@ -169,8 +180,9 @@ impl VoterState {
               self.view
           );
           let s_array = self.get_array().to_vec();
-          self.abse_struct.set_info(s_array);
+          //trace!("Set info: {:?}!",s_array);
           trace!("Set info!");
+          self.abse_struct.set_info(s_array);
           self.reset_array();
           Some(QC::new(block_hash, msg_view))
       } else {
@@ -324,16 +336,32 @@ impl Voter {
       let handler2 = tokio::spawn(async {
           voter.run_as_voter().await;
       });
-
-      let handler3 = tokio::spawn(async {
+      
+      if self.config.get_node_settings().pretend_failure{
+        let (r1, r2) = tokio::join!(handler1, handler2);
+        // TODO: handle error
+        r1.unwrap();
+        r2.unwrap();
+      }else{
+        let handler3 = tokio::spawn(async {
           pacemaker.run_as_pacemaker().await;
-      });
-
-      let (r1, r2, r3) = tokio::join!(handler1, handler2, handler3);
+        });
+        let (r1, r2, r3) = tokio::join!(handler1, handler2, handler3);
       // TODO: handle error
       r1.unwrap();
       r2.unwrap();
       r3.unwrap();
+      }
+
+      // let handler3 = tokio::spawn(async {
+      //     pacemaker.run_as_pacemaker().await;
+      // });
+
+      // let (r1, r2, r3) = tokio::join!(handler1, handler2, handler3);
+      // // TODO: handle error
+      // r1.unwrap();
+      // r2.unwrap();
+      // r3.unwrap();
   }
 }
 
@@ -478,6 +506,7 @@ impl ConsensusVoter {
               let b_x = block.justify.node;
               let block_justify = block.justify.clone();
               let block_hash = block.hash();
+              //trace!("receive block from: {}, view:{}, current view:{}",from, view, current_view);
 
               if from != id {
                   self.env.lock().block_tree.add_block(block, BlockType::Key);
@@ -641,7 +670,7 @@ impl ConsensusVoter {
               // onReceiveVote
               // verify signature
               author.verify(&block_hash, &signature).unwrap();
-              self.state.lock().set_voter_id(from);
+              //self.state.lock().set_voter_id(from);
               let qc = self.state.lock().add_vote(view, block_hash, from);
 
               if let Some(qc) = qc {
@@ -654,7 +683,7 @@ impl ConsensusVoter {
               self.update_qc_high(high_qc);
 
               author.verify(&digest, &signature).unwrap();
-              self.state.lock().set_voter_id(from);
+              //self.state.lock().set_voter_id(from);
               let qc = self.state.lock().add_vote(view, digest, from);
 
               if let Some(qc) = qc {
@@ -685,14 +714,17 @@ impl ConsensusVoter {
 
       while let Some(pkg) = rx.recv().await {
           let view = pkg.view.unwrap();
+          let last_view = self.state.lock().last_view.clone();
           let viewc = self.state.lock().view_cp.clone();
           let cview = self.state.lock().view.clone();
-          trace!("view pkg:{}, current view:{}， view copy:{}",view, cview, viewc);
-          //if ((view == viewc-1)&&self.leadership.get_leader(viewc) == id)&& viewc > cview {
-          if view == viewc-1 && viewc > cview {
+          trace!("view pkg:{}, current view:{}， last view:{} ,view copy:{}",view, cview, last_view, viewc);
+          if (((view == viewc-1)&&self.leadership.get_leader(viewc) == id)||
+          ((view == viewc)&&self.leadership.get_leader(viewc) != id))&& viewc > cview {
+          //if view == viewc-1 && viewc > cview {
             trace!("View jump successfully!");
             self.state.lock().success_jmp();
             //self.state.lock().multi_retain();
+            self.state.lock().notify.notify_waiters();
           }
           let current_view = self.state.lock().view;
           if self.state.lock().abse_struct.get_r() < current_view {
@@ -771,10 +803,11 @@ impl ConsensusVoter {
       loop {
           let tx = self.env.lock().network.get_sender();
           let view = self.state.lock().view;
+          let last_view = self.state.lock().last_view;
 
-          if self.leadership.get_leader(view) == id {
+          if self.leadership.get_leader(view) == id && view as i32 > last_view {
               tracing::trace!("{}: start as leader in view: {}", id, view);
-              self.state.lock().reset_array();
+              //self.state.lock().reset_array();
               let generic_qc = { self.state.lock().generic_qc.to_owned() };
 
               while self.collect_view.load(Ordering::SeqCst) + 1 < view {
@@ -837,8 +870,9 @@ impl ConsensusVoter {
           trace!("{} send new_view to {}", id, next_leader);
           let pkg = self.new_new_view(next_leader_view, next_leader);
           tx.send(pkg).await.unwrap();
-
+          self.state.lock().fail_jmp();
           self.state.lock().view = next_leader_view;
+          self.state.lock().last_view = next_leader_view as i32 - 1;
           multiplexer += 1;
       }
   }

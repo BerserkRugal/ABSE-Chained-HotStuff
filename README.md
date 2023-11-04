@@ -1,5 +1,17 @@
 # ABSE-Chained-HotStuff
 
+## Possible issues encountered
+1. Process automatically exits (no error reported)
+This issue is caused by the process automatically exiting after judging that the throughput is stable (this mechanism helps to collect data). The following are abnormal situations that may cause this issue:
+
+1) The process timeout is too long, and the throughput tends to stabilize
+
+2) When multiple processes are 'preempt_failure' in succession, the total timeout time is too long and the throughput tends to stabilize
+
+All of the above may cause the system to automatically exit the process before achieving optimal performance.
+
+The solution is to run it multiple times, or change the timeout duration or modify the code logic.
+
 ## Quick Start
 
 Directly executing a binary will start a committee composed of a single node using localhost TCP for communication.
