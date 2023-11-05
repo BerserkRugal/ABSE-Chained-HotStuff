@@ -36,6 +36,7 @@ Create a new localhost folder in the parent directory and generate relevant conf
  ```Bash
  bash run.sh 
 ```
+(View more specific logs, including the process of ABSE, by adding 'RUST_LOG=TRACE' to the process)
 
  Currently, it is not supported to adjust the baseline parameters after compilation. Please modify the baseline logic in the abse.rs and recompile the system.
 
