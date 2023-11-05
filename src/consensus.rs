@@ -523,6 +523,15 @@ impl ConsensusVoter {
                   let liveness = block_justify.view >= locked_qc.view;
 
                   if view > *voted_view && (safety || liveness) {
+                    if from != id{
+                      self.state.lock().set_voter_id(from.clone());
+                      let s_array = self.state.lock().get_array().to_vec();
+                      //trace!("Set info: {:?}!",s_array);
+                      trace!("Set info for leader!");
+                      self.state.lock().abse_struct.set_info(s_array);
+                      self.state.lock().reset_array();
+                    }
+                      //self.state.lock().set_voter_id(from.clone());
                       *voted_view = view;
                       let mjmp = self.state.lock().maxjmp.clone() as u64;
                       let abse_s = self.state.lock().abse_struct.clone();

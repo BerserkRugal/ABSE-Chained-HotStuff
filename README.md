@@ -1,16 +1,43 @@
 # ABSE-Chained-HotStuff
 
-## Possible issues encountered
-1. Process automatically exits (no error reported)
-This issue is caused by the process automatically exiting after judging that the throughput is stable (this mechanism helps to collect data). The following are abnormal situations that may cause this issue:
+## Running in release mode (the performance in release mode is more than 10 times higher than in debug mode)
 
-1) The process timeout is too long, and the throughput tends to stabilize
+```Bash
+cargo build --release
+```
+Find ach under target/release, run
+```Bash
+./ach -h
+```
+as well as
+```Bash
+./ach config-gen --help
+```
+to view parameter definitions.
 
-2) When multiple processes are 'preempt_failure' in succession, the total timeout time is too long and the throughput tends to stabilize
+The subcommand `config-gen` provide a way to generate multiple files for multi replicas over multi hosts.
+It also helps to generate a bunch of bash scripts to distribute files in accordance, run all the nodes, and
+collect the results.
 
-All of the above may cause the system to automatically exit the process before achieving optimal performance.
+Please lookup the document of config-gen before using it.
 
-The solution is to run it multiple times, or change the timeout duration or modify the code logic.
+**Remember that, default `config-gen` will run in dry-run mode, in which all the files will be print to the console.
+By specify `-w` you can flush these files to disks.**
+
+Example:
+
+Create a new localhost folder in the parent directory and generate relevant configuration files (injection rate: 130, batch size: 50, transaction size: 128, max jump: 6, timeout: 1000, 16 processes, 5 fauties):
+
+```Bash
+./ach -r 130 -b 50 -t 128 -m 6 --timeout 1000 config-gen -n 16 -f 5 -e ../ -w localhost
+```
+
+ Then copy ach to the localhost directory and run 
+ ```Bash
+ bash run.sh 
+```
+
+ Currently, it is not supported to adjust the baseline parameters after compilation. Please modify the baseline logic in the abse.rs and recompile the system.
 
 ## Quick Start
 
@@ -125,3 +152,20 @@ cargo run -- memory-test
 ```Bash
 cargo run -- fail-test
 ```
+
+## Possible issues encountered
+1. Process automatically exits (no error reported)
+
+This issue is caused by the process automatically exiting after judging that the throughput is stable (this mechanism helps to collect data). The following are abnormal situations that may cause this issue:
+
+a. The process timeout is too long, and the throughput tends to stabilize.
+
+b. When multiple processes are 'preempt_failure' in succession, the total timeout time is too long and the throughput tends to stabilize.
+
+c. Port communication failure.
+
+d. Throughput changes from rapid growth to slow growth.
+
+All of the above may cause the system to automatically exit the process before achieving optimal performance.
+
+The solution is to run it multiple times, or change the timeout duration or modify the code logic.

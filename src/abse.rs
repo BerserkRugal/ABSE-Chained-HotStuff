@@ -35,6 +35,18 @@ impl ABSE {
       }
     }
 
+    pub fn merge_info(&mut self, info: Vec<u64>) {
+      let mut minfo = info.clone();
+      if self.info.len() > minfo.len() {
+        minfo.resize(self.info.len(), 0);
+      } else if self.info.len() < minfo.len() {
+          self.info.resize(minfo.len(), 0);
+      }
+
+      let new_s = self.info.iter().zip(minfo.iter()).map(|(a, b)| a + b).collect::<Vec<u64>>();
+      self.set_info(new_s);
+    }
+
     pub fn generate(&mut self) -> Result<Vec<u64>, Box<dyn Error>> {
         //let rear_data = self.scores_i.back().unwrap();
         let mut rear_data = self.scores_i.back().cloned().unwrap_or_else(|| vec![0]);
