@@ -161,12 +161,10 @@ This issue is caused by the process automatically exiting after judging that the
 
 a. The process timeout is too long, and the throughput tends to stabilize.
 
-b. When multiple processes are 'preempt_failure' in succession, the total timeout time is too long and the throughput tends to stabilize.
+b. When multiple processes are 'pretend_failure' in succession, the total timeout time is too long and the throughput tends to stabilize.
 
-c. Port communication failure.
+c. The process is automatically killed by the operating system.
 
 d. Throughput changes from rapid growth to slow growth.
 
 All of the above may cause the system to automatically exit the process before achieving optimal performance.
-
-The solution is to run it multiple times, or change the timeout duration or modify the code logic.
